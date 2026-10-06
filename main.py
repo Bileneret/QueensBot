@@ -159,7 +159,7 @@ class QueensBot:
         Решает текущий открытый уровень с максимальной скоростью.
         """
         print("\n[QueensBot] Ожидание игрового поля...")
-        board_data = self.wait_for_board(max_attempts=20, interval=0.15, require_stable_frames=2)
+        board_data = self.wait_for_board(max_attempts=20, interval=0.15)
         if board_data is None:
             print("[QueensBot] Не удалось обнаружить игровое поле.")
             return False
@@ -200,8 +200,8 @@ class QueensBot:
                 t_lvl_start = time.perf_counter()
                 print(f"\n{'=' * 15} [ УРОВЕНЬ {current} ИЗ {total_levels} ] {'=' * 15}")
 
-                # 1. Ожидание доски с мгновенной валидацией
-                board_data = self.wait_for_board(max_attempts=60, interval=0.02, require_stable_frames=2)
+                # 1. Ожидание доски с мгновенной валидацией (require_stable_frames=2 по умолчанию)
+                board_data = self.wait_for_board(max_attempts=60, interval=0.02)
 
                 if board_data is None:
                     print("[QueensBot] Доска не найдена. Проверка попапов...")
@@ -223,7 +223,7 @@ class QueensBot:
                     except Exception:
                         pass
 
-                    board_data = self.wait_for_board(max_attempts=30, interval=0.02, require_stable_frames=2)
+                    board_data = self.wait_for_board(max_attempts=30, interval=0.02)
 
                 if board_data is None:
                     print(f"[QueensBot] Критический таймаут на уровне {current}. Остановка.")

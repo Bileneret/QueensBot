@@ -1,3 +1,4 @@
+import os
 import time
 import cv2
 import numpy as np
@@ -41,8 +42,35 @@ def run_benchmark():
             ctrl.tap(btn[0], btn[1], delay=1.5)
             board_frame = ctrl.get_frame()
         else:
-            print("  -> Загрузка эталонного кадра поля debug_screen.png...")
-            board_frame = cv2.imread("debug_screen.png")
+            if os.path.exists("debug_screen.png"):
+                print("  -> Загрузка эталонного кадра поля debug_screen.png...")
+                board_frame = cv2.imread("debug_screen.png")
+            else:
+                print("  -> debug_screen.png не найден. Генерация синтетического кадра доски 8x8 для бенчмарка...")
+                board_frame = np.full((2400, 1080, 3), 255, dtype=np.uint8)
+                bx, by, bw, bh = 40, 600, 1000, 1000
+                board_frame[by:by+bh, bx:bx+bw] = (245, 245, 245)
+                synth_regs = np.array([
+                    [0, 0, 0, 0, 0, 1, 1, 1],
+                    [2, 2, 0, 0, 1, 1, 1, 1],
+                    [2, 2, 2, 2, 1, 1, 1, 3],
+                    [2, 2, 2, 4, 4, 1, 3, 3],
+                    [5, 2, 4, 4, 4, 4, 3, 3],
+                    [5, 5, 5, 6, 4, 4, 7, 3],
+                    [5, 5, 6, 6, 6, 6, 7, 7],
+                    [5, 5, 6, 6, 6, 7, 7, 7],
+                ], dtype=np.int32)
+                cw, ch = bw // 8, bh // 8
+                for r in range(8):
+                    for c in range(8):
+                        cx1, cy1 = bx + c * cw, by + r * ch
+                        cx2, cy2 = cx1 + cw, cy1 + ch
+                        cv2.rectangle(board_frame, (cx1, cy1), (cx2, cy2), (210, 210, 210), 1)
+                        if c + 1 < 8 and synth_regs[r, c + 1] != synth_regs[r, c]:
+                            cv2.line(board_frame, (cx2, cy1), (cx2, cy2), (40, 40, 40), 5)
+                        if r + 1 < 8 and synth_regs[r + 1, c] != synth_regs[r, c]:
+                            cv2.line(board_frame, (cx1, cy2), (cx2, cy2), (40, 40, 40), 5)
+                cv2.rectangle(board_frame, (bx, by), (bx + bw, by + bh), (30, 30, 30), 6)
 
     # 2. Замер CV-парсинга
     print("\n[2/4] Замер скорости компьютерного зрения (BoardParser + cv2.kmeans)...")
