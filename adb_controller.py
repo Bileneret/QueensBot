@@ -13,8 +13,10 @@ import cv2
 import numpy as np
 
 if sys.platform == "win32":
+    import atexit
     import ctypes
     ctypes.windll.winmm.timeBeginPeriod(1)
+    atexit.register(ctypes.windll.winmm.timeEndPeriod, 1)
 
 try:
     import av
@@ -520,16 +522,17 @@ class ADBController:
     ) -> None:
         """
         Выполняет всю серию быстрых дабл-тапов поячеечно:
-        1. Сначала пробует мгновенный Scrcpy Binary Control Socket (batch_double_taps_socket).
-        2. При сбое сокета — автоматический прозрачный fallback на объединенный ADB shell input.
+        1. Если доступен Scrcpy Binary Control Socket — использует batch_double_taps_socket.
+           При сбое сокета посреди передачи выбрасывает RuntimeError (слепой перезапуск с 0 запрещен).
+        2. Фоллбэк на пакетный ADB shell input выполняется ТОЛЬКО если сокет изначально недоступен.
         """
         if not coords:
             return
 
         if self._control_socket:
-            if self.batch_double_taps_socket(coords):
-                return
-            print("[ADBController] Fallback: переключение на пакетный ввод через ADB shell...")
+            if not self.batch_double_taps_socket(coords):
+                raise RuntimeError("[ADBController] Binary control socket injection failed mid-stream")
+            return
 
         commands = []
         for i, (x, y) in enumerate(coords):
