@@ -1,0 +1,40 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment and secrets
+.env
+.env.local
+*.env
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# IDE and Editor configs
+.idea/
+.vscode/
+*.sublime-workspace
+*.sublime-project
+
+# Testing and coverage caches
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Temporary dumps and visual artifacts (keep debug_screen.png if present)
+*.png
+*.jpg
+*.jpeg
+!debug_screen.png
+
+# Downloaded binaries
+scrcpy-server-*.jar
+
+# OS artifacts
+Thumbs.db
+Desktop.ini
+.DS_Store
