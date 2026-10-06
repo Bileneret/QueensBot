@@ -311,13 +311,51 @@ if __name__ == "__main__":
     import os
 
     screen_path = "debug_screen.png"
-    if not os.path.exists(screen_path):
-        raise FileNotFoundError(f"Файл {screen_path} не найден для проверки.")
+    if os.path.exists(screen_path):
+        print(f"Загрузка изображения '{screen_path}'...")
+        img = cv2.imread(screen_path)
+        if img is None:
+            raise ValueError(f"Не удалось открыть изображение {screen_path}")
+    else:
+        print(f"Файл '{screen_path}' не найден. Генерация эталонной синтетической доски 8x8 для теста...")
+        # Создаем синтетический кадр 1080x2400 (белый фон с центрированной доской 8x8)
+        img = np.full((2400, 1080, 3), 255, dtype=np.uint8)
+        bx, by, bw, bh = 40, 600, 1000, 1000
+        # Базовый цвет доски
+        img[by:by+bh, bx:bx+bw] = (245, 245, 245)
+        # Синтетическая матрица регионов 8x8
+        synth_regions = np.array([
+            [0, 0, 1, 1, 1, 2, 2, 2],
+            [0, 0, 1, 3, 3, 3, 2, 2],
+            [0, 4, 4, 4, 3, 3, 2, 5],
+            [4, 4, 6, 4, 3, 7, 5, 5],
+            [6, 6, 6, 6, 7, 7, 5, 5],
+            [6, 6, 7, 7, 7, 5, 5, 5],
+            [6, 7, 7, 7, 7, 7, 5, 5],
+            [6, 6, 6, 7, 7, 7, 5, 5],
+        ], dtype=np.int32)
+        cw, ch = bw // 8, bh // 8
+        # Рисуем ячейки с тонкими внутренними и жирными внешними границами
+        for r in range(8):
+            for c in range(8):
+                cx1, cy1 = bx + c * cw, by + r * ch
+                cx2, cy2 = cx1 + cw, cy1 + ch
+                # Тонкая внутренняя сетка (светло-серая)
+                cv2.rectangle(img, (cx1, cy1), (cx2, cy2), (210, 210, 210), 1)
 
-    print(f"Загрузка изображения '{screen_path}'...")
-    img = cv2.imread(screen_path)
-    if img is None:
-        raise ValueError(f"Не удалось открыть изображение {screen_path}")
+        # Рисуем межрегиональные стены (темные линии)
+        for r in range(8):
+            for c in range(8):
+                cx1, cy1 = bx + c * cw, by + r * ch
+                cx2, cy2 = cx1 + cw, cy1 + ch
+                reg = synth_regions[r, c]
+                if c + 1 < 8 and synth_regions[r, c + 1] != reg:
+                    cv2.line(img, (cx2, cy1), (cx2, cy2), (40, 40, 40), 5)
+                if r + 1 < 8 and synth_regions[r + 1, c] != reg:
+                    cv2.line(img, (cx1, cy2), (cx2, cy2), (40, 40, 40), 5)
+
+        # Внешняя рамка
+        cv2.rectangle(img, (bx, by), (bx + bw, by + bh), (30, 30, 30), 6)
 
     parser = BoardParser()
     board, centers, bbox = parser.parse(img)

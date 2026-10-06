@@ -38,7 +38,7 @@ The solver operates as a pipeline of independent real-time subsystems synchroniz
 
 ```mermaid
 flowchart TD
-    subgraph Android_Device ["Android Device (Target: 120Hz Snapdragon 8 Gen Elite)"]
+    subgraph Android_Device ["Android Device (Target: 120Hz Snapdragon 8 Elite)"]
         GLES["Unity Game Engine\n(Queens Master)"]
         SRV["scrcpy-server-v2.4.jar\n(app_process / Android Runtime)"]
         IMS["Android InputManagerService\n(/dev/input/eventX)"]
@@ -165,7 +165,7 @@ Modern flagship Android displays refresh at 120Hz (one frame every **8.33 ms**).
 
 ## 5. Benchmarks: Before vs After
 
-Measurements taken on a Xiaomi device (Snapdragon 8 Gen Elite, 120Hz, Android 15 HyperOS):
+Measurements taken on a Xiaomi device (Snapdragon 8 Elite, 120Hz, Android 15 HyperOS):
 
 | Pipeline Stage | Legacy ADB Baseline | QueensBot Optimized | Speedup / Reduction |
 | :--- | :--- | :--- | :--- |
@@ -211,7 +211,7 @@ QueensBot/
 ### Installation
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/QueensBot.git
+git clone https://github.com/bileneret/QueensBot.git
 cd QueensBot
 
 # Install dependencies

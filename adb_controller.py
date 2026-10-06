@@ -250,32 +250,59 @@ class ADBController:
                 print("[ADBController] Scrcpy Binary Control Socket успешно подключен (TCP_NODELAY=1)!")
 
             self._stream_running = True
-            self._stream_thread = threading.Thread(
-                target=self._stream_decoder_loop,
-                args=(initial_chunk,),
-                daemon=True
-            )
-            self._stream_thread.start()
+            if self.enable_stream and HAS_PYAV:
+                self._stream_thread = threading.Thread(
+                    target=self._stream_decoder_loop,
+                    args=(initial_chunk,),
+                    daemon=True
+                )
+                self._stream_thread.start()
 
-            # Ждем первый валидный кадр до 5 секунд
-            t0 = time.time()
-            while time.time() - t0 < 5.0:
-                with self._frame_lock:
-                    if self._latest_frame is not None:
-                        h, w = self._latest_frame.shape[:2]
-                        self.screen_width = w
-                        self.screen_height = h
-                        print(f"[ADBController] Scrcpy H.264 видеострим успешно запущен! Разрешение: {w}x{h}, {self.max_fps} FPS.")
-                        return
-                time.sleep(0.02)
+                # Ждем первый валидный кадр до 5 секунд
+                t0 = time.time()
+                while time.time() - t0 < 5.0:
+                    with self._frame_lock:
+                        if self._latest_frame is not None:
+                            h, w = self._latest_frame.shape[:2]
+                            self.screen_width = w
+                            self.screen_height = h
+                            print(f"[ADBController] Scrcpy H.264 видеострим успешно запущен! Разрешение: {w}x{h}, {self.max_fps} FPS.")
+                            return
+                    time.sleep(0.02)
 
-            print("[ADBController] Предупреждение: Первый кадр не получен в течение 5 сек. Будет использован fallback screencap.")
+                print("[ADBController] Предупреждение: Первый кадр не получен в течение 5 сек. Будет использован fallback screencap.")
+            else:
+                # PyAV отсутствует или видеострим отключен, но нужен сокет управления.
+                # Запускаем фоновый дренаж видеосокета, чтобы буфер на устройстве не переполнялся.
+                self._stream_thread = threading.Thread(
+                    target=self._drain_stream_loop,
+                    daemon=True
+                )
+                self._stream_thread.start()
+                return
         except Exception as e:
             print(f"[ADBController] Ошибка запуска scrcpy видеострима/контроля: {e}. Переключение на fallback screencap.")
             self.stop_stream()
 
+    def _drain_stream_loop(self) -> None:
+        """Фоновый поток для пустого вычитывания видеопотока при отключенном декодере PyAV."""
+        sock = self._stream_socket
+        if not sock:
+            return
+        try:
+            while self._stream_running:
+                chunk = sock.recv(16384)
+                if not chunk:
+                    break
+        except Exception:
+            pass
+        finally:
+            self._stream_running = False
+
     def _stream_decoder_loop(self, initial_chunk: bytes = b"") -> None:
         """Фоновый поток для непрерывного декодирования H.264 пакетов и обновления latest_frame."""
+        if not HAS_PYAV:
+            return
         try:
             codec = av.CodecContext.create("h264", "r")
             sock = self._stream_socket

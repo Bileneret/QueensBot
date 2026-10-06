@@ -196,13 +196,27 @@ if __name__ == "__main__":
     from board_parser import BoardParser
 
     screen_file = "debug_screen.png"
-    if not os.path.exists(screen_file):
-        raise FileNotFoundError(f"Файл {screen_file} не найден.")
-
-    print(f"Загрузка '{screen_file}' и парсинг доски...")
-    img = cv2.imread(screen_file)
-    parser = BoardParser()
-    board, centers, bbox = parser.parse(img)
+    if os.path.exists(screen_file):
+        print(f"Загрузка '{screen_file}' и парсинг доски...")
+        img = cv2.imread(screen_file)
+        parser = BoardParser()
+        board, centers, bbox = parser.parse(img)
+    else:
+        print(f"Файл '{screen_file}' не найден. Использование эталонной матрицы регионов 8x8 для проверки...")
+        board = np.array([
+            [0, 0, 0, 0, 0, 1, 1, 1],
+            [2, 2, 0, 0, 1, 1, 1, 1],
+            [2, 2, 2, 2, 1, 1, 1, 3],
+            [2, 2, 2, 4, 4, 1, 3, 3],
+            [5, 2, 4, 4, 4, 4, 3, 3],
+            [5, 5, 5, 6, 4, 4, 7, 3],
+            [5, 5, 6, 6, 6, 6, 7, 7],
+            [5, 5, 6, 6, 6, 7, 7, 7],
+        ], dtype=np.int32)
+        n = board.shape[0]
+        # Синтетические экранные центры
+        centers = [[(50 + c * 100, 500 + r * 100) for c in range(n)] for r in range(n)]
+        img = np.full((2400, 1080, 3), 255, dtype=np.uint8)
 
     solver = QueensSolver()
     print(f"Используемый движок: {'OR-Tools CP-SAT' if solver.use_ortools else 'Backtracking'}")
