@@ -1,14 +1,14 @@
 # QueensBot: Ultra Low-Latency Autonomous Solver for Android
 
-<p align="center">
-  <img src="assets/demo.gif" alt="QueensBot Sub-second Demo" width="360"/>
-</p>
-
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Windows-lightgrey.svg)]()
 
 > A systems engineering case study in reversing Android touch subsystems, bypassing OS-level IPC bottlenecks, and building a sub-second autonomous constraint-satisfaction solver for the *Queens Master* puzzle game.
+
+<p align="center">
+  <img src="assets/demo.gif" alt="QueensBot Sub-second Demo" width="360"/>
+</p>
 
 ---
 
@@ -181,7 +181,7 @@ Measurements taken on a Xiaomi device (Snapdragon 8 Gen Elite, 120Hz, Android 15
 ## 6. Project Structure
 
 ```
-AutoQueen/
+QueensBot/
 ├── adb_controller.py      # Core ADB & Scrcpy v2.4 binary stream/control engine
 ├── board_parser.py        # Microsecond computer vision & Kruskal MSF segmentation
 ├── queens_solver.py       # Google OR-Tools CP-SAT constraint satisfaction solver
@@ -189,7 +189,6 @@ AutoQueen/
 ├── main.py                # CLI runner & autonomous speedrun watchdog
 ├── benchmark_stream.py    # Latency & throughput profiler for H.264 streaming
 ├── benchmark_speedrun.py  # Full end-to-end benchmark suite
-├── test_all_screens.py    # Regression test suite for modal/victory UI dataset
 ├── requirements.txt       # Production pinned dependencies
 ├── .env.example           # Configuration template
 └── README.md              # Systems architecture & engineering report
@@ -206,6 +205,8 @@ AutoQueen/
    - **USB Debugging** enabled.
    - **USB Debugging (Security settings)** enabled (*Crucial for Xiaomi / HyperOS / MIUI to permit programmatic touch injection*).
    - Connected via USB 3.0 or low-latency 5GHz Wi-Fi (`adb connect <ip>:<port>`).
+
+> **Display Calibration Note:** Geometric heuristics and modal dismissal coordinates are calibrated for 20:9 aspect ratio displays (1080x2400, e.g., Poco F7 Ultra). For other aspect ratios, coordinate multipliers in `ui_locator.py` can be adjusted.
 
 ### Installation
 ```bash

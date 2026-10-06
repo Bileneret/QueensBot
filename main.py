@@ -5,8 +5,10 @@ from typing import Optional, Tuple, List
 import numpy as np
 
 if sys.platform == "win32":
+    import atexit
     import ctypes
     ctypes.windll.winmm.timeBeginPeriod(1)
+    atexit.register(ctypes.windll.winmm.timeEndPeriod, 1)
 
 from adb_controller import ADBController
 from board_parser import BoardParser
@@ -83,7 +85,7 @@ class QueensBot:
         self,
         max_attempts: int = 40,
         interval: float = 0.02,
-        require_stable_frames: int = 1
+        require_stable_frames: int = 2
     ) -> Optional[Tuple[np.ndarray, List[List[Tuple[int, int]]], Tuple[int, int, int, int], np.ndarray]]:
         """
         Опрашивает экран через детерминированную State Machine до появления валидного игрового поля:
@@ -157,7 +159,7 @@ class QueensBot:
         Решает текущий открытый уровень с максимальной скоростью.
         """
         print("\n[QueensBot] Ожидание игрового поля...")
-        board_data = self.wait_for_board(max_attempts=20, interval=0.15, require_stable_frames=1)
+        board_data = self.wait_for_board(max_attempts=20, interval=0.15, require_stable_frames=2)
         if board_data is None:
             print("[QueensBot] Не удалось обнаружить игровое поле.")
             return False
@@ -199,7 +201,7 @@ class QueensBot:
                 print(f"\n{'=' * 15} [ УРОВЕНЬ {current} ИЗ {total_levels} ] {'=' * 15}")
 
                 # 1. Ожидание доски с мгновенной валидацией
-                board_data = self.wait_for_board(max_attempts=60, interval=0.02, require_stable_frames=1)
+                board_data = self.wait_for_board(max_attempts=60, interval=0.02, require_stable_frames=2)
 
                 if board_data is None:
                     print("[QueensBot] Доска не найдена. Проверка попапов...")
@@ -221,7 +223,7 @@ class QueensBot:
                     except Exception:
                         pass
 
-                    board_data = self.wait_for_board(max_attempts=30, interval=0.02, require_stable_frames=1)
+                    board_data = self.wait_for_board(max_attempts=30, interval=0.02, require_stable_frames=2)
 
                 if board_data is None:
                     print(f"[QueensBot] Критический таймаут на уровне {current}. Остановка.")
