@@ -194,6 +194,7 @@ QueensBot/
 ├── main.py                # CLI runner & autonomous speedrun watchdog
 ├── benchmark_stream.py    # Latency & throughput profiler for H.264 streaming
 ├── benchmark_speedrun.py  # Full end-to-end benchmark suite
+├── debug_screen.png       # Reference board frame for the offline demos (synthetic; regenerated if absent)
 ├── tests/test_offline.py  # Offline smoke tests (no device required)
 ├── .github/workflows/ci.yml  # CI: runs the offline tests on every push
 ├── requirements.txt       # Production dependencies (tested Oct 2026)
