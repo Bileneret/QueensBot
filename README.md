@@ -5,6 +5,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Windows-lightgrey.svg)
+[![CI](https://github.com/Bileneret/QueensBot/actions/workflows/ci.yml/badge.svg)](https://github.com/Bileneret/QueensBot/actions/workflows/ci.yml)
 
 > A systems engineering case study in reversing Android touch subsystems, bypassing OS-level IPC bottlenecks, and building a sub-second autonomous constraint-satisfaction solver for the *Queens Master* puzzle game.
 
@@ -43,23 +44,23 @@ The solver operates as a pipeline of independent real-time subsystems synchroniz
 ```mermaid
 flowchart TD
     subgraph Android_Device ["Android Device (Target: 120Hz Snapdragon 8 Elite)"]
-        GLES["Unity Game Engine\n(Queens Master)"]
-        SRV["scrcpy-server-v2.4.jar\n(app_process / Android Runtime)"]
-        IMS["Android InputManagerService\n(/dev/input/eventX)"]
-        ENC["Hardware MediaCodec\n(H.264 Encoder @ 60 FPS)"]
+        GLES["Unity Game Engine<br/>(Queens Master)"]
+        SRV["scrcpy-server-v2.4.jar<br/>(app_process / Android Runtime)"]
+        IMS["Android InputManagerService<br/>(/dev/input/eventX)"]
+        ENC["Hardware MediaCodec<br/>(H.264 Encoder @ 60 FPS)"]
     end
 
     subgraph Host_Pipeline ["QueensBot Host Architecture"]
-        DEC["PyAV Hardware Decoder Worker\n(pts/dts frame dropping -> ~2ms)"]
-        CV["BoardParser (Sobel + Kruskal MSF)\n(Topological Segmentation -> ~1.6ms)"]
-        SAT["QueensSolver (OR-Tools CP-SAT)\n(Constraint Satisfaction -> ~5ms)"]
-        CTRL["ADBController Touch Engine\n(32-Byte Binary Packets via TCP_NODELAY)"]
-        UI["UILocator Finite State Machine\n(Invariant-based Modal / Victory Detection)"]
+        DEC["PyAV Hardware Decoder Worker<br/>(latest-frame overwrite -> ~2 ms)"]
+        CV["BoardParser (Sobel + Kruskal MSF)<br/>(Topological Segmentation -> ~1.6 ms)"]
+        SAT["QueensSolver (OR-Tools CP-SAT)<br/>(Constraint Satisfaction -> ~5 ms)"]
+        CTRL["ADBController Touch Engine<br/>(32-Byte Binary Packets via TCP_NODELAY)"]
+        UI["UILocator Finite State Machine<br/>(Invariant-based Modal / Victory Detection)"]
     end
 
     GLES -->|Screen Buffer| ENC
     ENC -->|TCP Socket :forward 1| DEC
-    DEC -->|Zero-Copy Frame| UI
+    DEC -->|Latest Frame| UI
     UI -->|Board Detected| CV
     CV -->|Matrix N x N| SAT
     SAT -->|Queen Placements| CTRL
@@ -69,7 +70,7 @@ flowchart TD
 ```
 
 ### Architectural Breakdown
-1. **Low-Latency Video Pipeline**: `scrcpy-server.jar` runs inside Android's `app_process` container, binding to an abstract UNIX socket. Video packets are decoded via PyAV in a dedicated thread that continuously drops historical B/P-frames to keep read latency strictly bounded to **1–3 ms**.
+1. **Low-Latency Video Pipeline**: `scrcpy-server.jar` runs inside Android's `app_process` container, binding to an abstract UNIX socket. Video packets are decoded by PyAV in a dedicated thread that keeps only the newest decoded frame (a lock-protected latest-frame overwrite), so reading a frame never queues behind stale video; access latency stays in the low single-digit milliseconds.
 2. **Topological Board Segmentation**: Boundary extraction using localized Sobel gradient patches and Disjoint Set Union (DSU / Kruskal's algorithm) partitioning contiguous cells into $N$ connected color regions in **~1.6 ms**.
 3. **Discrete Constraint Solver**: Mathematical formulation in OR-Tools CP-SAT enforcing row, column, region, and Chebyshev distance ($\ge 2$) invariants in **~5 ms**.
 4. **Binary Touch Injection**: Custom TCP socket engine pushing 32-byte `SC_CONTROL_MSG_TYPE_INJECT_TOUCH_EVENT` packets directly into Android's native event pipeline in **0.046 ms per event**.
@@ -177,7 +178,7 @@ Measurements taken on a Xiaomi device (Snapdragon 8 Elite, 120Hz, Android 15 Hyp
 | **2. Board CV Parsing** | ~660.0 ms (`cv2.kmeans` + masks) | **~1.6 ms** (Sobel + Kruskal MSF) | **~410x faster** |
 | **3. Constraint Solver** | ~15.0 ms (Python backtracking) | **~5.2 ms** (OR-Tools CP-SAT C++) | **~3x faster** |
 | **4. Touch Placement (8Q)** | ~1,570.0 ms (`adb input tap`) | **~780.0 ms** (Binary Socket batch) | **~2x faster (100% acc)** |
-| **5. Verification Lag** | ~1,500.0 ms (Multi-frame polling) | **0.0 ms** (Mathematical guarantee) | **Instant** |
+| **5. Verification Overhead** | ~1,500.0 ms (multi-frame polling) | **0.0 ms** (open-loop execution — deterministic CP-SAT solution + calibrated 120 Hz tap pacing) | **Instant** |
 | **Total Solve Cycle** | **~4,600.0 ms (~4.6 s)** | **~670.0 ms (~0.67 s)** | **~7x Overall Speedup** |
 
 ---
@@ -193,7 +194,9 @@ QueensBot/
 ├── main.py                # CLI runner & autonomous speedrun watchdog
 ├── benchmark_stream.py    # Latency & throughput profiler for H.264 streaming
 ├── benchmark_speedrun.py  # Full end-to-end benchmark suite
-├── requirements.txt       # Production pinned dependencies
+├── tests/test_offline.py  # Offline smoke tests (no device required)
+├── .github/workflows/ci.yml  # CI: runs the offline tests on every push
+├── requirements.txt       # Production dependencies (tested Oct 2026)
 ├── .env.example           # Configuration template
 └── README.md              # Systems architecture & engineering report
 ```
@@ -225,6 +228,12 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
+### Tests (no device required)
+```bash
+pip install pytest
+pytest tests/test_offline.py -v
+```
+
 ### Configuration (`.env`)
 ```bash
 # Target device serial or IP:port (optional, autodetects if empty)
@@ -251,7 +260,7 @@ python main.py --watch
 python main.py --auto 10
 
 # 4. Target a specific ADB device over Wi-Fi
-python main.py --serial 192.168.0.105:5555 --watch
+python main.py --serial <phone-ip>:5555 --watch
 ```
 
 ---
