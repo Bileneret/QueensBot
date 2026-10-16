@@ -1,4 +1,5 @@
 import atexit
+import hashlib
 import os
 import shutil
 import socket
@@ -38,6 +39,10 @@ class ADBController:
     SCRCPY_VERSION = "2.4"
     SCRCPY_URL = "https://github.com/Genymobile/scrcpy/releases/download/v2.4/scrcpy-server-v2.4"
     SCRCPY_DEVICE_PATH = "/data/local/tmp/scrcpy-server.jar"
+    # SHA-256 официального релизного ассета v2.4 (сверен 16.10.2026 прямым скачиванием
+    # из github.com/Genymobile/scrcpy/releases/tag/v2.4 — совпадает с локальным файлом).
+    SCRCPY_SHA256 = "93c272b7438605c055e127f7444064ed78fa9ca49f81156777fd201e79ce7ba3"
+    SCRCPY_CONNECT_TIMEOUT = 20.0  # с: общий лимит ожидания сокетов scrcpy-server
 
     def __init__(
         self,
@@ -145,13 +150,52 @@ class ADBController:
 
         return active_devices
 
+    def _local_jar_path(self) -> str:
+        """Локальный кэш scrcpy-server.jar рядом с модулем."""
+        return os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            f"scrcpy-server-v{self.SCRCPY_VERSION}.jar")
+
+    @staticmethod
+    def _sha256_file(path: str) -> str:
+        """SHA-256 файла потоково (без загрузки целиком в память)."""
+        digest = hashlib.sha256()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+
     def _ensure_scrcpy_server(self) -> str:
-        """Гарантирует наличие scrcpy-server.jar на хосте и заливает на устройство."""
-        local_jar = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"scrcpy-server-v{self.SCRCPY_VERSION}.jar")
-        if not os.path.exists(local_jar) or os.path.getsize(local_jar) == 0:
+        """Гарантирует наличие scrcpy-server.jar на хосте и заливает на устройство.
+
+        Файл проверяется по SHA-256 (официальный ассет релиза): скачивание без
+        проверки хеша запрещено — бинарник запускается на устройстве через
+        app_process, поэтому подмена (MITM/DNS) должна быть отсечена здесь.
+        """
+        local_jar = self._local_jar_path()
+
+        if os.path.exists(local_jar) and os.path.getsize(local_jar) > 0 \
+                and self._sha256_file(local_jar) == self.SCRCPY_SHA256:
+            pass  # локальный файл уже проверен
+        else:
+            if os.path.exists(local_jar):
+                print("[ADBController] Локальный scrcpy-server.jar не совпал с SHA-256 — перекачиваю.")
+            downloaded = local_jar + ".part"
             print(f"[ADBController] Загрузка {os.path.basename(local_jar)} с GitHub...")
-            urllib.request.urlretrieve(self.SCRCPY_URL, local_jar)
-            print("[ADBController] scrcpy-server.jar успешно загружен.")
+            try:
+                urllib.request.urlretrieve(self.SCRCPY_URL, downloaded)
+            except Exception:
+                if os.path.exists(downloaded):
+                    os.remove(downloaded)
+                raise
+            actual = self._sha256_file(downloaded)
+            if actual != self.SCRCPY_SHA256:
+                os.remove(downloaded)
+                raise RuntimeError(
+                    f"[ADBController] SHA-256 скачанного scrcpy-server не совпал "
+                    f"(ожидался {self.SCRCPY_SHA256}, получен {actual}). Файл удалён."
+                )
+            os.replace(downloaded, local_jar)
+            print("[ADBController] scrcpy-server.jar загружен и проверен по SHA-256.")
 
         # Проверяем наличие файла на устройстве
         check_cmd = [self.adb_bin, "-s", self.device_serial, "shell", "ls", "-l", self.SCRCPY_DEVICE_PATH]
@@ -211,7 +255,12 @@ class ADBController:
             c_sock = None
             initial_chunk = b""
 
+            # Общий дедлайн: раньше цикл 40×(2.0 с recv + 0.1 с sleep) мог висеть
+            # до ~84 с, если соединение устанавливается, но сервер молчит.
+            deadline = time.time() + self.SCRCPY_CONNECT_TIMEOUT
             for _ in range(40):
+                if time.time() > deadline:
+                    break
                 if self._stream_proc.poll() is not None:
                     raise RuntimeError("Процесс scrcpy-server неожиданно завершился")
 
@@ -242,7 +291,10 @@ class ADBController:
                     time.sleep(0.1)
 
             if not connected or v_sock is None:
-                raise RuntimeError("Не удалось установить сокеты со scrcpy-server")
+                raise RuntimeError(
+                    f"Не удалось установить сокеты со scrcpy-server за {self.SCRCPY_CONNECT_TIMEOUT:.0f} с "
+                    "(проверьте, что экран устройства включён и разблокирован)"
+                )
 
             self._stream_socket = v_sock
             self._control_socket = c_sock
@@ -505,43 +557,45 @@ class ADBController:
         hold_s: float = 0.010,
         interval_s: float = 0.042,
         gap_s: float = 0.025,
-    ) -> bool:
+    ) -> Optional[int]:
         """
         Высокоскоростная аппаратная расстановка королев через Scrcpy Binary Control Socket:
         Каждая королева: DOWN -> hold -> UP -> interval -> DOWN -> hold -> UP
         Для каждой ячейки `i` используется уникальный `pointer_id = i`, что предотвращает
         ложную трактовку серии кликов как жеста свайпа (drag) движком Unity.
         Тайминги откалиброваны под 120 Гц: hold=10ms, interval=42ms, gap=25ms.
-        :return: True если все тапы отправлены через сокет, False при сбое.
+
+        :return: None, если все тапы отправлены; иначе индекс первой ячейки, чья передача
+                 не завершилась (вызывающий досылает остаток, начиная с неё).
         """
-        if not self._control_socket or not coords:
-            return False
+        if not coords:
+            return None
+        if not self._control_socket:
+            return 0
 
-        try:
-            for i, (x, y) in enumerate(coords):
-                cell_pointer_id = i
-
+        for i, (x, y) in enumerate(coords):
+            cell_pointer_id = i
+            try:
                 # Тап 1 (точка / крестик)
                 if not self.inject_touch(x, y, action=0, pointer_id=cell_pointer_id):
-                    return False
+                    return i
                 time.sleep(hold_s)
                 if not self.inject_touch(x, y, action=1, pointer_id=cell_pointer_id):
-                    return False
+                    return i
 
                 time.sleep(interval_s)
 
                 # Тап 2 (королева)
                 if not self.inject_touch(x, y, action=0, pointer_id=cell_pointer_id):
-                    return False
+                    return i
                 time.sleep(hold_s)
                 if not self.inject_touch(x, y, action=1, pointer_id=cell_pointer_id):
-                    return False
-
-                if i < len(coords) - 1:
-                    time.sleep(gap_s)
-            return True
-        except Exception:
-            return False
+                    return i
+            except Exception:
+                return i
+            if i < len(coords) - 1:
+                time.sleep(gap_s)
+        return None
 
     def batch_double_taps(
         self,
@@ -549,18 +603,43 @@ class ADBController:
     ) -> None:
         """
         Выполняет всю серию быстрых дабл-тапов поячеечно:
-        1. Если доступен Scrcpy Binary Control Socket — использует batch_double_taps_socket.
-           При сбое сокета посреди передачи выбрасывает RuntimeError (слепой перезапуск с 0 запрещен).
-        2. Фоллбэк на пакетный ADB shell input выполняется ТОЛЬКО если сокет изначально недоступен.
+        1. Если доступен Scrcpy Binary Control Socket — batch_double_taps_socket.
+           При обрыве сокета посреди серии битый сокет отключается, а оставшиеся
+           ячейки досылаются через ADB shell fallback. Слепого перезапуска с нуля
+           нет: ячейки до точки обрыва уже переданы (повторный дабл-тап снял бы
+           королеву), а ячейка обрыва отправляется повторно целиком — незавершённый
+           пакет в сокет не ушёл и на устройстве не применился.
+        2. Фоллбэк на пакетный ADB shell input выполняется ТОЛЬКО если сокет
+           изначально недоступен или отвалился mid-stream.
+        :raises RuntimeError: если shell-досылка тоже не сработала.
         """
         if not coords:
             return
 
         if self._control_socket:
-            if not self.batch_double_taps_socket(coords):
-                raise RuntimeError("[ADBController] Binary control socket injection failed mid-stream")
-            return
+            failed_index = self.batch_double_taps_socket(coords)
+            if failed_index is None:
+                return
+            print(
+                f"[ADBController] Control-сокет оборвался на ячейке {failed_index + 1}"
+                f"/{len(coords)} — отключаю его и досылаю остаток через adb shell..."
+            )
+            self._discard_control_socket()
+            coords = coords[failed_index:]
 
+        self._batch_double_taps_shell(coords)
+
+    def _discard_control_socket(self) -> None:
+        """Закрыть и забыть битый control-сокет (перезапуск scrcpy восстановит быстрый путь)."""
+        try:
+            if self._control_socket:
+                self._control_socket.close()
+        except Exception:
+            pass
+        self._control_socket = None
+
+    def _batch_double_taps_shell(self, coords: list[tuple[int, int]]) -> None:
+        """Пакетная досылка дабл-тапов через `adb shell input` (fallback-путь)."""
         commands = []
         for i, (x, y) in enumerate(coords):
             commands.append(f"input tap {x} {y}; sleep 0.015; input tap {x} {y}")

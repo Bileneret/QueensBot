@@ -181,7 +181,12 @@ class QueensBot:
         # Высокоскоростная пакетная расстановка королев (< 800 мс)
         tap_coords = [cell_centers[r][c] for r, c in queens]
         t_tap_start = time.perf_counter()
-        self.adb.batch_double_taps(tap_coords)
+        try:
+            self.adb.batch_double_taps(tap_coords)
+        except RuntimeError as e:
+            print(f"[QueensBot] Сбой ввода королев: {e}")
+            print("[QueensBot] Уровень не завершён — останавливаюсь, чтобы не исказить поле.")
+            return False
         t_tap = (time.perf_counter() - t_tap_start) * 1000.0
 
         print(f"[QueensBot] Все {n} королев выставлены за {t_tap:.0f} мс!")
@@ -244,7 +249,12 @@ class QueensBot:
                 # 3. Скоростная пакетная расстановка королев
                 tap_coords = [cell_centers[r][c] for r, c in queens]
                 t_tap_start = time.perf_counter()
-                self.adb.batch_double_taps(tap_coords)
+                try:
+                    self.adb.batch_double_taps(tap_coords)
+                except RuntimeError as e:
+                    print(f"[QueensBot] Сбой ввода королев на уровне {current}: {e}")
+                    print("[QueensBot] Серия остановлена (проверьте подключение устройства).")
+                    break
                 t_tap = (time.perf_counter() - t_tap_start) * 1000.0
 
                 lvl_time = time.perf_counter() - t_lvl_start
@@ -331,7 +341,12 @@ class QueensBot:
                 # 3. Мгновенная пакетная расстановка королев (быстрый поячеечный дабл-тап)
                 tap_coords = [centers[r][c] for r, c in queens]
                 t_tap_start = time.perf_counter()
-                self.adb.batch_double_taps(tap_coords)
+                try:
+                    self.adb.batch_double_taps(tap_coords)
+                except RuntimeError as e:
+                    print(f"[QueensBot] Сбой ввода королев: {e}")
+                    print("[QueensBot] Вотчер остановлен (проверьте подключение устройства).")
+                    break
                 t_tap = (time.perf_counter() - t_tap_start) * 1000.0
 
                 total_ms = (time.perf_counter() - t_solve_start) * 1000.0
