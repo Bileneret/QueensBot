@@ -2,22 +2,24 @@
 
 # QueensBot: Ultra Low-Latency Autonomous Solver for Android
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![CI](https://github.com/Bileneret/QueensBot/actions/workflows/ci.yml/badge.svg)](https://github.com/Bileneret/QueensBot/actions/workflows/ci.yml)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Windows-lightgrey.svg)
-[![CI](https://github.com/Bileneret/QueensBot/actions/workflows/ci.yml/badge.svg)](https://github.com/Bileneret/QueensBot/actions/workflows/ci.yml)
+
+[Русская версия](README.ru.md)
 
 > A systems engineering case study in reversing Android touch subsystems, bypassing OS-level IPC bottlenecks, and building a sub-second autonomous constraint-satisfaction solver for the *Queens Master* puzzle game.
 
 <p align="center">
-  <img src="assets/demo.gif" alt="QueensBot Sub-second Demo" width="360"/>
+  <img src="assets/demo.gif" alt="QueensBot sub-second demo" width="360"/>
 </p>
 
 </div>
 
 ---
 
-## 1. TL;DR & Benchmark Overview
+## TL;DR
 
 Standard Android test-automation tooling (`adb shell input tap`, `uiautomator`, Appium) incurs crippling IPC and process invocation overhead (~35–45 ms per tap, ~850 ms per frame capture). For complex interaction chains requiring multi-stage inputs (such as placing 8–11 Queens via double-taps on dynamic color grids), typical round-trip solve times sit around **~4.60 seconds**.
 
@@ -37,7 +39,7 @@ By re-architecting the system from the ground up:
 
 ---
 
-## 2. System Architecture
+## Architecture
 
 The solver operates as a pipeline of independent real-time subsystems synchronized across shared memory and non-blocking IPC:
 
@@ -77,9 +79,9 @@ flowchart TD
 
 ---
 
-## 3. Key Engineering Challenges Solved
+## Engineering highlights
 
-### A. Bypassing the Android Input Bottleneck: From 45 ms to 0.046 ms
+### Bypassing the Android Input Bottleneck: From 45 ms to 0.046 ms
 Calling `adb shell input tap <x> <y>` spawns a remote shell process, invokes the `app_process` runtime, instantiates Java objects, and calls `InputManager.injectInputEvent()` via Binder IPC.
 * Measured overhead of `adb shell input tap`: **35–45 ms per invocation**.
 * For an $8 \times 8$ board requiring 8 double-taps (16 distinct tap events), standard ADB execution consumes **~1,570 ms** purely in shell forks.
@@ -107,7 +109,7 @@ We reverse-engineered the [Scrcpy v2.4 Binary Control Protocol](https://github.c
 
 ---
 
-### B. The Windows Timer Quantum Floor (15.6 ms Jitter Fix)
+### The Windows Timer Quantum Floor (15.6 ms Jitter Fix)
 Under Windows NT, the default hardware timer interrupt quantum is `15.625 ms` (64 Hz). Calling standard Python `time.sleep(0.005)` yields an actual execution pause between **15.6 ms and 31.2 ms**. 
 
 For high-speed double-tap sequences (where the gap between DOWN and UP must be precisely calibrated to 8–10 ms), Windows scheduler jitter ruined tap registration.
@@ -124,7 +126,7 @@ This forces the NT kernel scheduler into high-resolution mode, achieving determi
 
 ---
 
-### C. Unity Touch Gesture Disambiguation & Virtual Pointer Isolation
+### Unity Touch Gesture Disambiguation & Virtual Pointer Isolation
 When firing consecutive double-taps across distinct coordinates in under 100 ms, Unity's `InputSystem` and touch tracking heuristic frequently misidentified rapid taps as a single continuous drag / swipe gesture. In *Queens Master*, a swipe across a cell places an "X" (block marker) instead of a Queen.
 
 **Root Cause**: Reusing a constant `pointer_id` (e.g. `POINTER_ID_GENERIC_FINGER = -2`) within the touch state window causes Unity to bind the new DOWN event to the previous contact trajectory.
@@ -146,7 +148,7 @@ Assigning distinct pointer identities ensures Android's MotionEvent pipeline tre
 
 ---
 
-### D. The 120Hz vs Unity Event Loop Barrier
+### The 120Hz vs Unity Event Loop Barrier
 Modern flagship Android displays refresh at 120Hz (one frame every **8.33 ms**). However, mobile game engines (Unity / Unreal) execute their input evaluation loop inside `Update()` callbacks tied to internal frame pacing.
 * Injecting taps faster than **~6 ms** caused the engine to skip the release state (`ACTION_UP`), coalescing two physical taps into a single elongated press.
 * **Empirical Calibration**:
@@ -157,7 +159,7 @@ Modern flagship Android displays refresh at 120Hz (one frame every **8.33 ms**).
 
 ---
 
-## 4. Game Mechanics & Multiplayer Teardown
+## Game mechanics & multiplayer teardown
 
 *Queens Master* (published by Kwalee) features pseudo-multiplayer duels, tournaments, and speed races. Reverse engineering the client runtime reveals that the "multiplayer" experience is entirely synthetic:
 
@@ -168,12 +170,12 @@ Modern flagship Android displays refresh at 120Hz (one frame every **8.33 ms**).
 
 ---
 
-## 5. Benchmarks: Before vs After
+## Before / after
 
 Measurements taken on a Xiaomi device (Snapdragon 8 Elite, 120Hz, Android 15 HyperOS):
 
 | Pipeline Stage | Legacy ADB Baseline | QueensBot Optimized | Speedup / Reduction |
-| :--- | :--- | :--- | :--- |
+| --- | --- | --- | --- |
 | **1. Frame Capture** | ~850.0 ms (`screencap -p`) | **~2.1 ms** (PyAV H.264 stream) | **~400x faster** |
 | **2. Board CV Parsing** | ~660.0 ms (`cv2.kmeans` + masks) | **~1.6 ms** (Sobel + Kruskal MSF) | **~410x faster** |
 | **3. Constraint Solver** | ~15.0 ms (Python backtracking) | **~5.2 ms** (OR-Tools CP-SAT C++) | **~3x faster** |
@@ -183,7 +185,7 @@ Measurements taken on a Xiaomi device (Snapdragon 8 Elite, 120Hz, Android 15 Hyp
 
 ---
 
-## 6. Project Structure
+## Project structure
 
 ```
 QueensBot/
@@ -199,15 +201,16 @@ QueensBot/
 ├── .github/workflows/ci.yml  # CI: runs the offline tests on every push
 ├── requirements.txt       # Production dependencies (tested Oct 2026)
 ├── .env.example           # Configuration template
-└── README.md              # Systems architecture & engineering report
+├── README.md              # Systems architecture & engineering report (English)
+└── README.ru.md           # Russian translation of this document
 ```
 
 ---
 
-## 7. Quick Start
+## Quick start
 
 ### Prerequisites
-1. **Python 3.10+** (64-bit).
+1. **Python 3.12+** (64-bit).
 2. **Android Device**:
    - Developer options enabled.
    - **USB Debugging** enabled.
@@ -219,7 +222,7 @@ QueensBot/
 ### Installation
 ```bash
 # Clone the repository
-git clone https://github.com/bileneret/QueensBot.git
+git clone https://github.com/Bileneret/QueensBot.git
 cd QueensBot
 
 # Install dependencies
@@ -266,8 +269,10 @@ python main.py --serial <phone-ip>:5555 --watch
 
 ---
 
-## 8. License & Disclaimer
+## Acknowledgments & disclaimer
 
-Distributed under the MIT License. 
+*This repository is intended strictly for academic, educational, and systems-engineering research purposes (reverse engineering low-latency mobile streaming and input subsystems). All game assets and trademarks belong to their respective copyright holders.*
 
-*Disclaimer: This repository is intended strictly for academic, educational, and systems-engineering research purposes (reverse engineering low-latency mobile streaming and input subsystems). All game assets and trademarks belong to their respective copyright holders.*
+## License
+
+[MIT](LICENSE)
