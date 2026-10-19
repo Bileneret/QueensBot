@@ -6,9 +6,17 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Windows-lightgrey.svg)
+[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/badges/StandWithUkraine.svg)](https://vshymanskyy.github.io/StandWithUkraine/)
+
+<a href="https://vshymanskyy.github.io/StandWithUkraine/">
+  <img src="https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner2-direct.svg" width="450" alt="Stand With Ukraine">
+</a>
+
+---
 
 [Русская версия](README.ru.md)
 
+---
 > A systems engineering case study in reversing Android touch subsystems, bypassing OS-level IPC bottlenecks, and building a sub-second autonomous constraint-satisfaction solver for the *Queens Master* puzzle game.
 
 <p align="center">
