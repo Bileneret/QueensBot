@@ -6,8 +6,17 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Лицензия: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 ![Платформа](https://img.shields.io/badge/Platform-Android%20%7C%20Windows-lightgrey.svg)
+[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/badges/StandWithUkraine.svg)](https://vshymanskyy.github.io/StandWithUkraine/)
+
+<a href="https://vshymanskyy.github.io/StandWithUkraine/">
+  <img src="https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner2-direct.svg" width="450" alt="Stand With Ukraine">
+</a>
+
+---
 
 [English version](README.md)
+
+---
 
 > Инженерный кейс: реверс тач-подсистем Android, обход IPC-барьеров ОС и построение автономного солвера ограничений, решающего головоломку *Queens Master* быстрее секунды.
 
